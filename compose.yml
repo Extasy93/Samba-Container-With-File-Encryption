@@ -1,0 +1,23 @@
+services:
+  samba:
+    build: .
+    image: dockurr/samba
+    container_name: samba
+    environment:
+      NAME: "Data"
+      USER: "samba"
+      PASS: "secret"
+      RW: true      # Optional, default true
+      UID: 1000    # Optional, default 1000
+      GID: 1000    # Optional, default 1000
+    ports:
+      - 1445:445
+    devices:
+      - /dev/fuse:/dev/fuse
+    cap_add:
+      - SYS_ADMIN
+      - MKNOD
+    volumes:
+      - ./samba_encrypted:/encrypted
+      - ./snapshots:/snapshots
+    restart: always
