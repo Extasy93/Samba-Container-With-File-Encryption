@@ -147,26 +147,66 @@ if [ -f "$config" ] && [ -s "$config" ]; then
 else
 
     config="/etc/samba/smb.tmp"
-    template="/etc/samba/smb.default"
 
-    if [ ! -f "$template" ]; then
-      echo "Your /etc/samba directory does not contain a valid smb.conf file!"
-      exit 1
-    fi
+    if [ -n "${LDAP_URL:-}" ]; then
 
-    rm -f "$config"
-    cp "$template" "$config"
+        cat > "$config" <<EOF
+[global]
+        server string = samba
+        security = user
+        server min protocol = SMB3
+        passdb backend = ldapsam:${LDAP_URL}
+        ldap admin dn = ${LDAP_BIND_DN:-}
+        ldap suffix = ${LDAP_BASE_DN:-}
+        ldap user suffix = ${LDAP_USER_SUFFIX:-ou=people}
+        ldap group suffix = ${LDAP_GROUP_SUFFIX:-ou=groups}
 
-    if [ -n "$NAME" ] && [[ "${NAME,,}" != "data" ]]; then
-      sed -i "s/\[Data\]/\[$NAME\]/" "$config"    
-    fi
+[Data]
+        path = /storage
+        comment = Shared
+        browseable = yes
+        writable = yes
+        read only = no
+        smb encrypt = required
+EOF
 
-    sed -i "s/^\(\s*\)force user =.*/\1force user = $USER/" "$config"
-    sed -i "s/^\(\s*\)force group =.*/\1force group = $group/" "$config"
+        if [ -n "${NAME:-}" ] && [[ "${NAME,,}" != "data" ]]; then
+            sed -i "s/\[Data\]/\[$NAME\]/" "$config"
+        fi
 
-    if [[ "$RW" == [Ff0]* ]]; then
-        sed -i "s/^\(\s*\)writable =.*/\1writable = no/" "$config"
-        sed -i "s/^\(\s*\)read only =.*/\1read only = yes/" "$config"
+        if [[ "$RW" == [Ff0]* ]]; then
+            sed -i "s/^\(\s*\)writable =.*/\1writable = no/" "$config"
+            sed -i "s/^\(\s*\)read only =.*/\1read only = yes/" "$config"
+        fi
+
+        if [ -n "${LDAP_BIND_PASSWORD:-}" ]; then
+            smbpasswd -w "$LDAP_BIND_PASSWORD" || echo "Failed to set LDAP bind password."
+        fi
+
+    else
+
+        template="/etc/samba/smb.default"
+
+        if [ ! -f "$template" ]; then
+          echo "Your /etc/samba directory does not contain a valid smb.conf file!"
+          exit 1
+        fi
+
+        rm -f "$config"
+        cp "$template" "$config"
+
+        if [ -n "$NAME" ] && [[ "${NAME,,}" != "data" ]]; then
+          sed -i "s/\[Data\]/\[$NAME\]/" "$config"
+        fi
+
+        sed -i "s/^\(\s*\)force user =.*/\1force user = $USER/" "$config"
+        sed -i "s/^\(\s*\)force group =.*/\1force group = $group/" "$config"
+
+        if [[ "$RW" == [Ff0]* ]]; then
+            sed -i "s/^\(\s*\)writable =.*/\1writable = no/" "$config"
+            sed -i "s/^\(\s*\)read only =.*/\1read only = yes/" "$config"
+        fi
+
     fi
 
 fi
@@ -182,7 +222,7 @@ mkdir -p /var/lib/samba/sysvol
 mkdir -p /var/lib/samba/private
 mkdir -p /var/lib/samba/bind-dns
 
-if [ -f "$users" ] && [ -s "$users" ]; then
+if [ -z "${LDAP_URL:-}" ] && [ -f "$users" ] && [ -s "$users" ]; then
 
     while IFS= read -r line || [[ -n ${line} ]]; do
 
@@ -201,7 +241,7 @@ if [ -f "$users" ] && [ -s "$users" ]; then
 
     done < <(tr -d '\r' < "$users")
 
-else
+elif [ -z "${LDAP_URL:-}" ]; then
 
     add_user "$config" "$USER" "$UID" "$group" "$GID" "$PASS" "$share" || { echo "Failed to add user $USER"; exit 1; }
 
@@ -226,5 +266,9 @@ ln -sf "$config" /etc/samba.conf
 [ -d /var/cache/samba/msg.lock ] && chmod -R 0755 /var/cache/samba/msg.lock
 
 start_snapshot_watcher || echo "Le watcher de snapshots n'a pas pu être démarré."
+
+if command -v winbindd >/dev/null 2>&1; then
+    winbindd || echo "Impossible de démarrer winbindd."
+fi
 
 exec smbd --configfile="$config" --foreground --debug-stdout -d "${DEBUG_LEVEL:-1}" --no-process-group
