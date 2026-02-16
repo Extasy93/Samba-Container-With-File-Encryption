@@ -255,3 +255,49 @@ décrivant l’utilisateur à créer :
 - `GID` : identifiant numérique du groupe principal.
 - `password` : mot de passe en clair (ne peut pas contenir `:`, `\n` ou `\r`).
 - `homedir` : (optionnel) répertoire personnel de l’utilisateur.
+
+### Authentification LDAP via variables d’environnement
+
+L’authentification peut être déléguée à un annuaire LDAP sans modifier
+manuellement `smb.conf`. Lorsque la variable `LDAP_URL` est définie, le
+conteneur génère automatiquement une configuration Samba avec
+`passdb backend = ldapsam:...`.
+
+Variables principales à définir (dans `docker compose` ou `docker run`) :
+
+```yaml
+environment:
+  LDAP_URL: "ldap://ldap.exemple.local"
+  LDAP_BASE_DN: "dc=exemple,dc=local"
+  LDAP_BIND_DN: "cn=admin,dc=exemple,dc=local"
+  LDAP_BIND_PASSWORD: "motDePasseAdmin"
+  LDAP_USER_SUFFIX: "ou=people"   # optionnel, valeur par défaut
+  LDAP_GROUP_SUFFIX: "ou=groups"  # optionnel, valeur par défaut
+```
+
+Avec ces variables, le script d’entrée génère un `smb.conf` équivalent à :
+
+```ini
+[global]
+        server string = samba
+        security = user
+        server min protocol = SMB3
+        passdb backend = ldapsam:ldap://ldap.exemple.local
+        ldap admin dn = cn=admin,dc=exemple,dc=local
+        ldap suffix = dc=exemple,dc=local
+        ldap user suffix = ou=people
+        ldap group suffix = ou=groups
+
+[Data]
+        path = /storage
+        comment = Shared
+        browseable = yes
+        writable = yes
+        read only = no
+        smb encrypt = required
+```
+
+Les comptes (utilisateurs / groupes) doivent alors exister dans l’annuaire
+LDAP avec le schéma Samba approprié. Dans ce mode, la création d’utilisateurs
+locaux via `users.conf` est ignorée, et les authentifications sont gérées par
+l’annuaire.
