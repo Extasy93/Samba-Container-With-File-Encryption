@@ -1,13 +1,4 @@
-<div align="center">
-<a href="https://github.com/dockur/samba"><img src="https://raw.githubusercontent.com/dockur/samba/master/.github/logo.png" title="Logo" style="max-width:100%;" width="256" /></a>
-</div>
-<div align="center">
 
-[![Build]][build_url]
-[![Version]][tag_url]
-[![Size]][tag_url]
-[![Package]][pkg_url]
-[![Pulls]][hub_url]
 
 </div></h1>
 
@@ -98,8 +89,6 @@ samba:1000:smb:1000:secret
 antoine:1001:smb:1000:antoine
 ```
 
-Il est recommandé de **ne pas publier** de vrais identifiants / mots de passe dans un dépôt public.
-
 ### Dossiers importants (côté hôte)
 
 - `./samba_encrypted` : données chiffrées (à garder **en privé**, à exclure du contrôle de version).
@@ -161,52 +150,53 @@ docker run -d --name samba \
 
 ## Configuration ⚙️
 
-### How do I choose the location of the shared folder?
+### Emplacement du dossier partagé
 
-To change the location of the shared folder, include the following bind mount in your compose file:
-
-In this customized version, the shared folder exposed by Samba is `/storage`, but the
-**encrypted data on disk** lives in `/encrypted`. On the host side, you should bind‑mount
-`/encrypted`:
+Dans cette version, le dossier partagé par Samba est `/storage`, mais les
+**données chiffrées sur le disque** se trouvent dans `/encrypted`. Côté hôte,
+il est recommandé de monter ce répertoire comme suit :
 
 ```yaml
 volumes:
   - ./samba_encrypted:/encrypted
 ```
 
-The directory `./samba_encrypted` on your host will contain only **chiffres illisibles**
-(`gocryptfs`), même si côté client SMB vous voyez des noms de fichiers normaux.
+Le répertoire `./samba_encrypted` sur l’hôte contient uniquement des données
+chiffrées par `gocryptfs`, même si les clients SMB voient des noms de fichiers
+lisibles.
 
-### How do I modify the display name of the shared folder?
+### Nom du partage
 
-You can change the display name of the shared folder by adding the following environment variable:
+Le nom affiché du partage peut être modifié via la variable d’environnement :
 
 ```yaml
 environment:
   NAME: "Data"
 ```
 
-### How do I connect to the shared folder?
+### Connexion au dossier partagé
 
-On macOS, with the modified `compose.yml` (port 1445 mapped to 445 in the container),
-you can connect from Finder with:
+Sur macOS, avec le `compose.yml` fourni (port 1445 mappé vers 445 dans le conteneur),
+la connexion depuis le Finder peut se faire avec :
 
 ```text
 smb://localhost:1445/Data
 ```
 
-On Windows, you can connect with:
+Sous Windows, la connexion peut se faire avec :
 
 ```text
-\\<host-ip>\Data
+\\<ip-hote>\Data
 ```
 
 > [!NOTE]
-> Replace `<host-ip>` with the IP address or hostname of the Docker host.
+> Remplacer `<ip-hote>` par l’adresse IP ou le nom d’hôte de la machine qui exécute Docker.
 
-### How do I modify the default credentials?
+### Identifiants par défaut
 
-You can set the `USER` and `PASS` environment variables to modify the credentials from their default values: user `samba` with password `secret`.
+Les identifiants par défaut peuvent être modifiés avec les variables
+d’environnement `USER` et `PASS`. Par défaut : utilisateur `samba` et mot de
+passe `secret`.
 
 ```yaml
 environment:
@@ -214,9 +204,10 @@ environment:
   PASS: "secret"
 ```
 
-### How do I modify the permissions?
+### Permissions (UID / GID, lecture seule)
 
-You can set `UID` and `GID` environment variables to change the user and group ID.
+Les variables `UID` et `GID` permettent de contrôler l’identifiant utilisateur
+et groupe utilisés dans le conteneur :
 
 ```yaml
 environment:
@@ -224,50 +215,43 @@ environment:
   GID: "1005"
 ```
 
-To mark the share as read-only, add the variable `RW: "false"`.
+Pour forcer le partage en **lecture seule**, la variable suivante peut être
+utilisée :
 
-### How do I modify other settings?
+```yaml
+environment:
+  RW: "false"
+```
 
-If you need more advanced features, you can completely override the default configuration by modifying the [smb.conf](https://github.com/dockur/samba/blob/master/smb.conf) file in this repo, and binding your custom config to the container like this:
+### Autres réglages Samba
+
+Pour des besoins plus avancés, il est possible de surcharger complètement la
+configuration en adaptant le fichier `smb.conf` de ce dépôt, puis en le
+montant dans le conteneur :
 
 ```yaml
 volumes:
   - ./smb.conf:/etc/samba/smb.conf
 ```
 
-### How do I configure multiple users?
+### Configuration multi‑utilisateurs
 
-If you want to configure multiple users, you can bind the local `users.conf`
-file from this repo to the container as follows:
+Pour configurer plusieurs utilisateurs, il est possible de monter le fichier
+`users.conf` local dans le conteneur :
 
 ```yaml
 volumes:
   - ./users.conf:/etc/samba/users.conf
 ```
 
-Each line inside that file contains a `:` separated list of attributes describing
-the user to be created:
+Chaque ligne de `users.conf` contient une liste d’attributs séparés par `:`
+décrivant l’utilisateur à créer :
 
 `username:UID:groupname:GID:password:homedir`
 
-where:
-- `username` The textual name of the user.
-- `UID` The numerical id of the user.
-- `groupname` The textual name of the primary user group.
-- `GID` The numerical id of the primary user group.
-- `password` The clear text password of the user. The password can not contain `:`,`\n` or `\r`.
-- `homedir` Optional field for setting the home directory of the user.
-
-## Stars 🌟
-[![Stars](https://starchart.cc/dockur/samba.svg?variant=adaptive)](https://starchart.cc/dockur/samba)
-
-[build_url]: https://github.com/dockur/samba/
-[hub_url]: https://hub.docker.com/r/dockurr/samba
-[tag_url]: https://hub.docker.com/r/dockurr/samba/tags
-[pkg_url]: https://github.com/dockur/samba/pkgs/container/samba
-
-[Build]: https://github.com/dockur/samba/actions/workflows/build.yml/badge.svg
-[Size]: https://img.shields.io/docker/image-size/dockurr/samba/latest?color=066da5&label=size
-[Pulls]: https://img.shields.io/docker/pulls/dockurr/samba.svg?style=flat&label=pulls&logo=docker
-[Version]: https://img.shields.io/docker/v/dockurr/samba/latest?arch=amd64&sort=semver&color=066da5
-[Package]: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2Fdockur%2Fsamba%2Fsamba.json&query=%24.downloads&logo=github&style=flat&color=066da5&label=pulls
+- `username` : nom de l’utilisateur.
+- `UID` : identifiant numérique de l’utilisateur.
+- `groupname` : nom du groupe principal.
+- `GID` : identifiant numérique du groupe principal.
+- `password` : mot de passe en clair (ne peut pas contenir `:`, `\n` ou `\r`).
+- `homedir` : (optionnel) répertoire personnel de l’utilisateur.
