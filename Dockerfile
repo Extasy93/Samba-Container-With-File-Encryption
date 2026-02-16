@@ -11,6 +11,11 @@ RUN set -eu && \
     inotify-tools \
     rsync \
     samba \
+    samba-winbind \
+    samba-winbind-clients \
+    samba-libnss-winbind \
+    samba-winbind-krb5-locator \
+    openldap-clients \
     tzdata \
     shadow && \
     echo "user_allow_other" > /etc/fuse.conf && \
